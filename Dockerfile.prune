@@ -1,0 +1,30 @@
+FROM debian-os 
+
+RUN apt-get install -y gcc
+
+RUN mkdir -p /opt/ibm
+RUN mkdir -p /opt/ibm/informix
+RUN mkdir -p /opt/ibm/scripts
+RUN mkdir -p /opt/ibm/data
+
+ADD iif.tar             /opt/ibm/informix
+
+ADD informix_install.sh  /opt/ibm/scripts
+ADD informix_prune.sh    /opt/ibm/scripts
+ADD informix_inf.env     /opt/ibm/scripts
+RUN ln -s  /opt/ibm/scripts/informix_inf.env /usr/local/bin/informix_inf.env
+ADD dinit.c              /opt/ibm/
+
+
+ADD informix_install.properties /opt/ibm/informix_install.properties
+
+
+RUN cc /opt/ibm/dinit.c -o /opt/ibm/dinit
+RUN /bin/bash /opt/ibm/scripts/informix_install.sh
+USER informix
+USER root
+RUN /bin/bash /opt/ibm/scripts/informix_prune.sh
+RUN /bin/tar -C /opt/ibm -cvf /tmp/informix.prune.tar informix
+
+
+

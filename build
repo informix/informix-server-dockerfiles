@@ -1,0 +1,26 @@
+#!/bin/bash
+
+TAG_OS=debian-os
+TAG_IFX=informix-de
+
+### Build os-debian
+docker build -t ${TAG_OS} -f Dockerfile.os .
+
+## Remove Edition Installer from Dockerfile.prune
+sed -i '/edition/d' Dockerfile.prune
+
+### Build Prune Phase
+docker build -t ${TAG_IFX}-prune -f Dockerfile.prune .
+
+
+### Pull out Informix Only.
+docker run --name temp-ifx-prune ${TAG_IFX}-prune /bin/true
+docker cp temp-ifx-prune:/tmp/informix.prune.tar .
+docker cp temp-ifx-prune:/opt/ibm/dinit .
+docker rm temp-ifx-prune
+
+### Build Final Image
+
+docker build -t ${TAG_IFX} -f Dockerfile.base .
+
+
