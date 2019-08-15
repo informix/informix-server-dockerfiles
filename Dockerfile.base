@@ -5,59 +5,61 @@ RUN mkdir -p /opt/ibm                                      && \
     mkdir -p /opt/ibm/scripts                              && \
     mkdir -p /opt/ibm/sql                                  && \
     mkdir -p /opt/ibm/data                                 && \
+    mkdir -p /opt/ibm/localdata                            && \
     mkdir -p /opt/ibm/config                               && \
     chown -R informix:informix        /opt/ibm
 
 
 
-ADD    informix_calculate_onconfig.sh    /opt/ibm/scripts   
-ADD    informix_config.small             /opt/ibm/scripts   
-ADD    informix_config.medium            /opt/ibm/scripts   
-ADD    informix_config.large             /opt/ibm/scripts   
-ADD    informix_custom_install.sh        /opt/ibm/scripts   
-ADD    informix_entry.sh                 /opt/ibm/scripts     
-ADD    informix_entry_basic.sh           /opt/ibm/scripts     
-ADD    informix_extend_root.sql	         /opt/ibm/sql
-ADD    informix_inf.env                  /opt/ibm/scripts 
-RUN    ln -s  /opt/ibm/scripts/informix_inf.env /usr/local/bin/informix_inf.env           
-ADD    informix_init.sh                  /opt/ibm/scripts  
-ADD    informix_online.sh                /opt/ibm/scripts  
+COPY    informix_calculate_onconfig.sh    /opt/ibm/scripts   
+COPY    informix_config.small             /opt/ibm/scripts   
+COPY    informix_config.medium            /opt/ibm/scripts   
+COPY    informix_config.large             /opt/ibm/scripts   
+COPY    informix_custom_install.sh        /opt/ibm/scripts   
+COPY    informix_entry.sh                 /opt/ibm/scripts     
+COPY    informix_entry_basic.sh           /opt/ibm/scripts     
+COPY    informix_extend_root.sql	      /opt/ibm/sql
+COPY    informix_inf.env                  /opt/ibm/scripts     
+RUN     ln -s /opt/ibm/scripts/informix_inf.env /usr/local/bin/informix_inf.env 
+COPY    informix_init.sh                  /opt/ibm/scripts  
+COPY    informix_online.sh                /opt/ibm/scripts  
 
-ADD    informix_sbspace.sql              /opt/ibm/sql
-ADD    informix_setup_datadir.sh         /opt/ibm/scripts     
-ADD    informix_setup_iot_db.sh          /opt/ibm/scripts    
-ADD    informix_setup_hqagent.sh         /opt/ibm/scripts   
-ADD    informix_setup_hqserver.sh        /opt/ibm/scripts   
-ADD    informix_setup_links.sh           /opt/ibm/scripts   
-ADD    informix_setup_msgpath.sh         /opt/ibm/scripts    
-ADD    informix_setup_onconfig.sh        /opt/ibm/scripts  
-ADD    informix_setup_rootdbs.sh         /opt/ibm/scripts   
-ADD    informix_setup_sqlhosts.sh        /opt/ibm/scripts   
-ADD    informix_setup_user_db.sh         /opt/ibm/scripts    
+COPY    informix_sbspace.sql              /opt/ibm/sql
+COPY    informix_setup_datadir.sh         /opt/ibm/scripts     
+COPY    informix_setup_iot_db.sh          /opt/ibm/scripts    
+COPY    informix_setup_ha.sh              /opt/ibm/scripts   
+COPY    informix_setup_hqagent.sh         /opt/ibm/scripts   
+COPY    informix_setup_hqserver.sh        /opt/ibm/scripts   
+COPY    informix_setup_msgpath.sh         /opt/ibm/scripts    
+COPY    informix_setup_onconfig.sh        /opt/ibm/scripts  
+COPY    informix_setup_rootdbs.sh         /opt/ibm/scripts   
+COPY    informix_setup_sqlhosts.sh        /opt/ibm/scripts   
+COPY    informix_setup_user_db.sh         /opt/ibm/scripts    
 
-ADD    informix_status.sh                /opt/ibm/scripts     
-ADD    informix_stop.sh                  /opt/ibm/scripts     
-ADD    informix_update_hostname.sh       /opt/ibm/scripts   
-ADD    informix_update_onconfig.sh       /opt/ibm/scripts  
-ADD    informix_wl.sh                    /opt/ibm/scripts   
+COPY    informix_status.sh                /opt/ibm/scripts     
+COPY    informix_stop.sh                  /opt/ibm/scripts     
+COPY    informix_update_hostname.sh       /opt/ibm/scripts   
+COPY    informix_update_onconfig.sh       /opt/ibm/scripts  
+COPY    informix_update_onconfig_ha.sh    /opt/ibm/scripts  
+COPY    informix_wl.sh                    /opt/ibm/scripts   
+
+COPY    sch_init_informix.small.sql              /opt/ibm/sql
+COPY    sch_init_informix.medium.sql             /opt/ibm/sql
+COPY    sch_init_informix.large.sql              /opt/ibm/sql
 
 
+ADD     informix.prune.tar                /opt/ibm
+COPY    dinit                             /opt/ibm
 
-ADD    informix.prune.tar                /opt/ibm
-ADD    dinit                             /opt/ibm
-
-ADD    sch_init_informix.small.sql              /opt/ibm/sql
-ADD    sch_init_informix.medium.sql             /opt/ibm/sql
-ADD    sch_init_informix.large.sql              /opt/ibm/sql
 
 VOLUME     ["/opt/ibm/data"]
 VOLUME     ["/opt/ibm/config"]
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=1 --start-period=60s CMD /opt/ibm/scripts/informix_status.sh  || exit 1
 
-USER informix
+USER informix 
 WORKDIR /home/informix
-STOPSIGNAL SIGTERM
+STOPSIGNAL SIGTERM 
 
 ### EXPOSE
 ###    sqlexec port - 9088
@@ -66,7 +68,7 @@ STOPSIGNAL SIGTERM
 ###    rest port    - 27018 
 ###    mqtt port    - 27883
 
-EXPOSE 9088 9089 27017 27018 27883 8080
+#EXPOSE 9088 9089 27017 27018 27883 8080
 
 ###  ENTRYPOINT:
 ###     arg1:  Name of the C program used to manage the starting/stopping

@@ -5,131 +5,87 @@
 #  Called by:   informix_entry.sh
 
 
-if [[ ! -z $env_ONCONFIG_FILE ]]
-then
-   ONCONFIG_PATH=$INFORMIX_CONFIG_DIR/$env_ONCONFIG_FILE
-else
-   ONCONFIG_PATH=$INFORMIX_CONFIG_DIR/$ONCONFIG
-fi
-
-
-if [ ! -z $env_ONCONFIG_FILE ]
-then
-   MSGLOG ">>>        Using $ONCONFIG supplied by user" N
-   #mv $INFORMIX_DATA_DIR/$ONCONFIG $ONCONFIG_PATH
-   sudo chown informix:informix $ONCONFIG_PATH
-   sudo chmod 660 $ONCONFIG_PATH
-else
-   MSGLOG ">>>        Using default $ONCONFIG" N
-   cp $INFORMIXDIR/etc/onconfig.std $ONCONFIG_PATH
-fi
-
-E_ROOTPATH="$INFORMIX_DATA_DIR/spaces/rootdbs.000"
-E_CONSOLE="$INFORMIX_DATA_DIR/logs/console.log"
-E_MSGPATH="$INFORMIX_DATA_DIR/logs/online.log"
-E_DBSERVERNAME="informix"
 E_TAPEDEV="/dev/null"
 E_LTAPEDEV="/dev/null"
 E_LOCKMODE="row"
 E_SBSPACE="sbspace"
+E_ROOTPATH="$INFORMIX_DATA_DIR/spaces/rootdbs.000"
+E_CONSOLE="$INFORMIX_DATA_DIR/logs/console.log"
+E_MSGPATH="$INFORMIX_DATA_DIR/logs/online.log"
+( $(isEnvSet $env_DBSERVERNAME) ) && E_DBSERVERNAME=$env_DBSERVERNAME || E_DBSERVERNAME="informix"
 
-sed -i "s#^ROOTPATH .*#ROOTPATH $E_ROOTPATH#g"               "${ONCONFIG_PATH}"
-sed -i "s#^CONSOLE .*#CONSOLE $E_CONSOLE#g"                  "${ONCONFIG_PATH}"
-sed -i "s#^MSGPATH .*#MSGPATH $E_MSGPATH#g"                  "${ONCONFIG_PATH}"
-sed -i "s#^DBSERVERNAME.*#DBSERVERNAME $E_DBSERVERNAME#g"    "${ONCONFIG_PATH}"
-
-if [[ $env_PORT_DRDA == "ON" ]]
+if ( $(isEnvSet $env_ONCONFIG_FILE) ) 
 then
-sed -i "s#^DBSERVERALIASES.*#DBSERVERALIASES ${E_DBSERVERNAME}_dr#g" "${ONCONFIG_PATH}" 
-   MSGLOG ">>>        Setting dbserveraliases" N 
+   MSGLOG ">>>        Using onconfig supplied by user" N
+   if [[ $env_STORAGE == "LOCAL" ]]
+   then
+      cp $INFORMIX_CONFIG_DIR/$env_ONCONFIG_FILE $INFORMIXDIR/etc/$ONCONFIG
+      #ONCONFIG_PATH=$INFORMIXDIR/etc/$ONCONFIG
+   else
+      ln -s $INFORMIX_CONFIG_DIR/$env_ONCONFIG_FILE $INFORMIXDIR/etc/$ONCONFIG
+      #ONCONFIG_PATH=$INFORMIX_CONFIG_DIR/$env_ONCONFIG_FILE
+   fi    
+else
+   MSGLOG ">>>        Creating DEFAULT onconfig" N
+   if [[ $env_STORAGE == "LOCAL" ]]
+   then
+      cp $INFORMIXDIR/etc/onconfig.std $INFORMIXDIR/etc/$ONCONFIG
+   else
+      cp $INFORMIXDIR/etc/onconfig.std $INFORMIX_CONFIG_DIR/$ONCONFIG
+      ln -s $INFORMIX_CONFIG_DIR/$ONCONFIG $INFORMIXDIR/etc/$ONCONFIG
+   fi
 fi
 
-sed -i "s#^TAPEDEV .*#TAPEDEV   $E_TAPEDEV#g"                "${ONCONFIG_PATH}"
-sed -i "s#^LTAPEDEV .*#LTAPEDEV $E_LTAPEDEV#g"               "${ONCONFIG_PATH}"
-sed -i "s#^DEF_TABLE_LOCKMODE page#DEF_TABLE_LOCKMODE $E_LOCKMODE#g" "${ONCONFIG_PATH}"
-sed -i "s#^SBSPACENAME.*#SBSPACENAME $E_SBSPACE#g"               "${ONCONFIG_PATH}"
-
-if [[ ! -z $env_LICENSE_SERVER ]]
-then
-   sed -i "s#^LICENSE_SERVER.*#LICENSE_SERVER $env_LICENSE_SERVER#g"               "${ONCONFIG_PATH}"
-fi
-
-sudo chown informix:informix "${ONCONFIG_PATH}"
-sudo chmod 660 "${ONCONFIG_PATH}"
+#sudo chown informix:informix "${ONCONFIG_PATH}"
+#sudo chmod 660 "${ONCONFIG_PATH}"
 
 
-# if [[ -z ${env_TYPE} ]]
-# then
-#     if [[ $env_SIZE = "SMALL" ]]
-#     then
-#     MSGLOG ">>>        Setting up Small System" n
-#     . $SCRIPTS/informix_update_onconfig.sh $ONCONFIG_PATH $SCRIPTS/informix_config.small
-#     fi
+SED "s#^ROOTPATH .*#ROOTPATH $E_ROOTPATH#g"  $INFORMIXDIR/etc/$ONCONFIG        
+SED "s#^CONSOLE .*#CONSOLE $E_CONSOLE#g"     $INFORMIXDIR/etc/$ONCONFIG 
+SED "s#^MSGPATH .*#MSGPATH $E_MSGPATH#g"     $INFORMIXDIR/etc/$ONCONFIG 
+SED "s#^TAPEDEV .*#TAPEDEV   $E_TAPEDEV#g"                $INFORMIXDIR/etc/$ONCONFIG 
+SED "s#^LTAPEDEV .*#LTAPEDEV $E_LTAPEDEV#g"               $INFORMIXDIR/etc/$ONCONFIG 
+SED "s#^SBSPACENAME.*#SBSPACENAME $E_SBSPACE#g"           $INFORMIXDIR/etc/$ONCONFIG 
+SED "s#^DBSERVERNAME.*#DBSERVERNAME $E_DBSERVERNAME#g"    $INFORMIXDIR/etc/$ONCONFIG 
+SED "s#^DEF_TABLE_LOCKMODE page#DEF_TABLE_LOCKMODE $E_LOCKMODE#g" $INFORMIXDIR/etc/$ONCONFIG 
 
-#     if [[ $env_SIZE = "MEDIUM" ]]
-#     then
-#     MSGLOG ">>>        Setting up Medium System" N
-#     . $SCRIPTS/informix_update_onconfig.sh $ONCONFIG_PATH $SCRIPTS/informix_config.medium
-#     fi
 
-#     if [[ $env_SIZE = "LARGE" ]]
-#     then
-#     MSGLOG ">>>        Setting up Large System" N
-#     . $SCRIPTS/informix_update_onconfig.sh $ONCONFIG_PATH $SCRIPTS/informix_config.large
-#     fi
+[[ $env_PORT_DRDA == "ON" ]] && SED "s#^DBSERVERALIASES.*#DBSERVERALIASES ${E_DBSERVERNAME}_dr#g" $INFORMIXDIR/etc/$ONCONFIG 
+( $(isEnvSet $env_LICENSE_SERVER) ) && SED "s#^LICENSE_SERVER.*#LICENSE_SERVER $env_LICENSE_SERVER#g"      $INFORMIXDIR/etc/$ONCONFIG 
 
-#     if [[ $env_SIZE = "CUSTOM" ]]
-#     then
-#     MSGLOG ">>>        Setting up Custom System" N
-#     . $SCRIPTS/informix_update_onconfig.sh $ONCONFIG_PATH $INFORMIX_DATA_DIR/informix_config.custom
-#     fi
+#if [[ $env_PORT_DRDA == "ON" ]]
+#then
+#   MSGLOG ">>>        Setting dbserveraliases" N 
+#   SED "s#^DBSERVERALIASES.*#DBSERVERALIASES ${E_DBSERVERNAME}_dr#g" $INFORMIXDIR/etc/$ONCONFIG 
+#fi
 
-#     if [[ -z ${env_SIZE} ]]
-#     then
-#     MSGLOG ">>>        Setting up OLTP/Default system" N
-#     . $SCRIPTS/informix_calculate_onconfig.sh $ONCONFIG_PATH oltp 
-#     fi
-# else
-#     if [[ $env_TYPE = "DSS" ]]
-#     then
-#     MSGLOG ">>>        Setting up DSS system" N
-#     . $SCRIPTS/informix_calculate_onconfig.sh $ONCONFIG_PATH dss 
-#     fi
 
-#     if [[ $env_TYPE = "OLTP" ]]
-#     then
-#     MSGLOG ">>>        Setting up OLTP system" N
-#     . $SCRIPTS/informix_calculate_onconfig.sh $ONCONFIG_PATH oltp 
-#     fi
+#if [[ ! -z $env_LICENSE_SERVER ]]
+#then
+#   SED "s#^LICENSE_SERVER.*#LICENSE_SERVER $env_LICENSE_SERVER#g"      $INFORMIXDIR/etc/$ONCONFIG 
+#fi
 
-#     if [[ $env_TYPE = "HYBRID" ]]
-#     then
-#     MSGLOG ">>>        Setting up HYBRID system" N
-#     . $SCRIPTS/informix_calculate_onconfig.sh $ONCONFIG_PATH hybrid 
-#     fi
-# fi
-
-###
-### Call informix_calculate_onconfig to adjust onconfig shm parameters based on
-### $env_TYPE  Buffers, SHMVIRT, NONPDQ  
-###      OLTP=80,19,1
-###      DSS=20,75,5
-###      HYBRID=50,49,1
 
 if [[ $env_SIZE = "SMALL" ]]
 then
   MSGLOG ">>>        Setting up Small System" n
-  . $SCRIPTS/informix_update_onconfig.sh $ONCONFIG_PATH $SCRIPTS/informix_config.small
+  . $SCRIPTS/informix_update_onconfig.sh $SCRIPTS/informix_config.small
 elif [[ $env_SIZE = "MEDIUM" ]]
 then
   MSGLOG ">>>        Setting up Medium System" n
-  . $SCRIPTS/informix_update_onconfig.sh $ONCONFIG_PATH $SCRIPTS/informix_config.medium
+  . $SCRIPTS/informix_update_onconfig.sh $SCRIPTS/informix_config.medium
 elif [[ $env_SIZE = "LARGE" ]]
 then
   MSGLOG ">>>        Setting up Large System" n
   . $SCRIPTS/informix_update_onconfig.sh $ONCONFIG_PATH $SCRIPTS/informix_config.large
 else
    ### env_SIZE not set or set to a number (Percentage) 
-   . $SCRIPTS/informix_calculate_onconfig.sh $ONCONFIG_PATH  
+   . $SCRIPTS/informix_calculate_onconfig.sh $INFORMIXDIR/etc/$ONCONFIG  
 fi
 
+
+if [[ ! -z $env_HA ]] 
+then
+   MSGLOG ">>>        Updating ONCONFIG for HA " N
+   . $SCRIPTS/informix_update_onconfig_ha.sh  
+fi

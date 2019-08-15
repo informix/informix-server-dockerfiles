@@ -23,13 +23,13 @@ HQLOG ">>>     HQSERVER : $env_HQSERVER"
 
 
 
-uHQSERVER_ID=0
-uHQAGENT_ID=0
+HQSERVER_ID=0
+HQAGENT_ID=0
 
 ###
 ### Register Server attempt(s) 
 ###
-register_server() {
+register_hqagent_with_hqserver() {
 
 HQLOG ">>>        REGISTERING HQAGENT with HQSERVER" 
 HQLOG ">>>           REGISTER ATTEMPT $i" 
@@ -37,18 +37,18 @@ HQLOG ">>>           REGISTER ATTEMPT $i"
 for i in $(eval echo "{1..$ITER}")
 do
 
-SERVER_ID=`curl -basic -u admin:${env_HQADMIN_PASSWORD} -H 'Content-Type: application/json' -H 'Accept: application/json' http://${env_HQSERVER_MAPPED_HOSTNAME}:${env_HQSERVER_MAPPED_HTTP_PORT}/api/informix --data-binary "{'groupId': 0, 'alias': '${env_MAPPED_HOSTNAME}', 'hostname': '${env_MAPPED_HOSTNAME}', 'port': ${env_MAPPED_SQLI_PORT}, 'monitorUser': 'informix', 'monitorPassword': '${env_INFORMIX_PASSWORD}', 'adminUser': 'informix', 'adminPassword': '${env_INFORMIX_PASSWORD}'}" 2>/dev/null | jq '.id'`
+REGISTERED_ID=`curl -basic -u admin:${env_HQADMIN_PASSWORD} -H 'Content-Type: application/json' -H 'Accept: application/json' http://${env_HQSERVER_MAPPED_HOSTNAME}:${env_HQSERVER_MAPPED_HTTP_PORT}/api/informix --data-binary "{'groupId': 0, 'alias': '${env_MAPPED_HOSTNAME}', 'hostname': '${env_MAPPED_HOSTNAME}', 'port': ${env_MAPPED_SQLI_PORT}, 'monitorUser': 'informix', 'monitorPassword': '${env_INFORMIX_PASSWORD}', 'adminUser': 'informix', 'adminPassword': '${env_INFORMIX_PASSWORD}'}" 2>/dev/null | jq '.id'`
 
 HQLOG ">>>           REGISTER ATTEMPT $i" 
-   if [[ ! -z ${SERVER_ID} ]] 
+   if [[ ! -z ${REGISTERED_ID} ]] 
    then
    break
    fi
    sleep $SLEEP 
 
 done
-uHQAGENT_ID=$SERVER_ID
-HQLOG ">>>     HQAGENT SERVER_ID $uHQAGENT_ID" 
+HQAGENT_ID=$REGISTERED_ID
+HQLOG ">>>     HQAGENT SERVER ID $HQAGENT_ID" 
 }
 
 
@@ -58,7 +58,7 @@ HQLOG ">>>     HQAGENT SERVER_ID $uHQAGENT_ID"
 create_properties_file() {
 sudo echo "" > $PROP_PATH
 sudo chmod 644 $PROP_PATH 
-sudo echo "informixServer.id=$uHQAGENT_ID" >> $PROP_PATH
+sudo echo "informixServer.id=$HQAGENT_ID" >> $PROP_PATH
 sudo echo "server.host=${env_HQSERVER_MAPPED_HOSTNAME}" >> $PROP_PATH
 sudo echo "server.port=${env_HQSERVER_MAPPED_HTTP_PORT}" >> $PROP_PATH
 
@@ -88,8 +88,8 @@ SERVER_LIST=`curl -basic -u admin:${env_HQADMIN_PASSWORD} -H 'Content-Type: appl
 
    if [[ ! -z ${SERVER_LIST} ]] 
    then
-      SERVER_ID=`echo $SERVER_LIST| jq '.servers[] | select(.alias=="'$SERVNAME'") | .id '`
-      if [[ ! -z $SERVER_ID ]]
+      FOUND_SERVER_ID=`echo $SERVER_LIST| jq '.servers[] | select(.alias=="'$SERVNAME'") | .id '`
+      if [[ ! -z $FOUND_SERVER_ID ]]
       then
          break 
       fi
@@ -98,8 +98,8 @@ SERVER_LIST=`curl -basic -u admin:${env_HQADMIN_PASSWORD} -H 'Content-Type: appl
 
 done
 
-HQLOG ">>>        HQSERVER ($SERVNAME) ID: ${SERVER_ID}" 
-echo $SERVER_ID
+HQLOG ">>>        HQSERVER ($SERVNAME) ID: ${FOUND_SERVER_ID}" 
+echo $FOUND_SERVER_ID
 }
 
 
@@ -109,7 +109,7 @@ echo $SERVER_ID
 set_server_storage() {
 for i in $(eval echo "{1..$ITER}")
 do
-REGISTER=`curl -X PUT -basic -u admin:${env_HQADMIN_PASSWORD} -H 'Content-Type: application/json' -H 'Accept: application/json' http://${env_HQSERVER_MAPPED_HOSTNAME}:${env_HQSERVER_MAPPED_HTTP_PORT}/api/informix/${uHQAGENT_ID}/agent --data-binary "{'config': { 'repositoryServerId' : ${uHQSERVER_ID}, 'database' : 'hqmon' }}" 2>/dev/null`
+REGISTER=`curl -X PUT -basic -u admin:${env_HQADMIN_PASSWORD} -H 'Content-Type: application/json' -H 'Accept: application/json' http://${env_HQSERVER_MAPPED_HOSTNAME}:${env_HQSERVER_MAPPED_HTTP_PORT}/api/informix/${HQAGENT_ID}/agent --data-binary "{'config': { 'repositoryServerId' : ${HQSERVER_ID}, 'database' : 'hqmon' }}" 2>/dev/null`
 
 
    if [[ ! -z ${REGISTER} ]] 
@@ -125,15 +125,21 @@ sudo echo "REGISTER Storage:  $REGISTER" >> $HQLOG
 
 
 
-#uHQSERVER_ID=$(get_server_id "hqserver") 
-uHQSERVER_ID=$(get_server_id ${env_HQSERVER_MAPPED_HOSTNAME}) 
-register_server
+HQSERVER_ID=$(get_server_id ${env_HQSERVER_MAPPED_HOSTNAME}) 
+
+if [[ `echo ${env_HQSERVER}|tr /a-z/ /A-Z/` == "START" ]]  
+then
+   HQAGENT_ID=$HQSERVER_ID
+else
+   HQLOG ">>>        DEBUG: register hqagent with hqserver" 
+   register_hqagent_with_hqserver
+fi
 create_properties_file
+
 
 if [[ `echo ${env_HQAGENT}|tr /a-z/ /A-Z/` = "START" ]]  
 then
+   HQLOG ">>>        DEBUG: hqagent = start" 
    start_hqagent
-   #get_hqserver_id
-   #get_server_id hqserver
    set_server_storage
 fi

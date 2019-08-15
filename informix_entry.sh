@@ -34,24 +34,34 @@ trap finish_shutdown SIGHUP SIGINT SIGTERM
 
 ENVFILE=/usr/local/bin/informix_inf.env
 
+
+
 ## env_STORAGE not read in yet so read it here and adjust
 ## Storage location accordingly.
 
-if [[ `echo ${env_STORAGE}|tr /a-z/ /A-Z/` == "LOCAL" ]]
+if [[ `echo ${STORAGE}|tr /a-z/ /A-Z/` == "LOCAL" ]]
 then
    MSGLOG ">>>    Using LOCAL storage! ..." N
    cnt=`grep localdata ${ENVFILE}|wc -l`
    if [[ $cnt = "0" ]];
    then
    MSGLOG ">>>    Ressetting INFORMIX_DATA_DIR ..." N
-   sudo sed -i "s/data/localdata/g" ${ENVFILE} 
-   #sed -i "s#^TAPEDEV .*#TAPEDEV   $E_TAPEDEV#g"                "${ONCONFIG_PATH}" 
+   sudo sed -i --follow-symlinks "s/data/localdata/g" ${ENVFILE} 
    fi
 fi
 
-. $ENVFILE 
-read_env
+## DBSERVERNAME Not read in yet so read it and adjust
+## INFORMIXSERVER accordingly
+cat $ENVFILE
+if [[ ! -z $DBSERVERNAME ]] 
+then
+MSGLOG ">>>    RESETTING INFORMIXSERVER = ${DBSERVERNAME}"
+sudo sed -i --follow-symlinks "s/INFORMIXSERVER=informix/INFORMIXSERVER=${DBSERVERNAME}/g" ${ENVFILE} 
+fi
 
+. $ENVFILE 
+cat $ENVFILE
+read_env
 
 }
 
@@ -60,12 +70,19 @@ function read_env() {
 env_STORAGE=`echo $STORAGE|tr /a-z/ /A-Z/`
 env_SIZE=`echo $SIZE|tr /a-z/ /A-Z/`
 env_TYPE=`echo $TYPE|tr /a-z/ /A-Z/`
+
+env_HA=`echo $HA|tr /a-z/ /A-Z/`
 env_HQSERVER=`echo $HQSERVER`
 env_HQAGENT=`echo $HQAGENT|tr /a-z/ /A-Z/`
 env_HQSERVER_MAPPED_HTTP_PORT=`echo $HQSERVER_MAPPED_HTTP_PORT`
 env_HQSERVER_MAPPED_HOSTNAME=`echo $HQSERVER_MAPPED_HOSTNAME`
+env_HQADMIN_PASSWORD=`echo $HQADMIN_PASSWORD`
+env_INFORMIX_PASSWORD=`echo $INFORMIX_PASSWORD`
+env_DBSERVERNAME=`echo $DBSERVERNAME`
+
 env_MAPPED_HOSTNAME=`echo $MAPPED_HOSTNAME`
 env_MAPPED_SQLI_PORT=`echo $MAPPED_SQLI_PORT`
+
 env_LICENSE=`echo $LICENSE|tr /a-z/ /A-Z/`
 env_LICENSE_SERVER=`echo $LICENSE_SERVER`
 env_ONCONFIG_FILE=`echo $ONCONFIG_FILE`
@@ -74,8 +91,7 @@ env_INIT_FILE=`echo $INIT_FILE`
 env_CONFIGURE_INIT=`echo $CONFIGURE_INIT`
 env_RUN_FILE_PRE_INIT=`echo $RUN_FILE_PRE_INIT`
 env_RUN_FILE_POST_INIT=`echo $RUN_FILE_POST_INIT`
-env_INFORMIX_PASSWORD=`echo $INFORMIX_PASSWORD`
-env_HQADMIN_PASSWORD=`echo $HQADMIN_PASSWORD`
+
 
 env_PORT_DRDA=`echo $PORT_DRDA|tr /a-z/ /A-Z/`
 env_PORT_REST=`echo $PORT_REST|tr /a-z/ /A-Z/`
@@ -154,6 +170,7 @@ MSGLOG ">>>    MAPPED_SQLI_PORT: ${env_MAPPED_SQLI_PORT}" N
 MSGLOG ">>>" N
 MSGLOG ">>>    ONCONFIG_FILE: ${env_ONCONFIG_FILE}" N
 MSGLOG ">>>    SQLHOSTS_FILE: ${env_SQLHOSTS_FILE}" N
+MSGLOG ">>>    DBSERVERNAME: ${env_DBSERVERNAME}" N
 MSGLOG ">>>    INIT_FILE: ${env_INIT_FILE}" N
 MSGLOG ">>>    RUN_FILE_PRE_INIT: ${env_RUN_FILE_PRE_INIT}" N
 MSGLOG ">>>    RUN_FILE_POST_INIT: ${env_RUN_FILE_POST_INIT}" N
@@ -164,6 +181,7 @@ MSGLOG ">>>    PORT_REST: ${env_PORT_REST}" N
 MSGLOG ">>>    PORT_MONGO: ${env_PORT_MONGO}" N
 MSGLOG ">>>    PORT_MQTT: ${env_PORT_MQTT}" N
 MSGLOG ">>>" N
+MSGLOG ">>>    HA: ${env_HA}" N
 MSGLOG ">>>    HQSERVER: ${env_HQSERVER}" N
 MSGLOG ">>>    HQAGENT: ${env_HQAGENT}" N
 MSGLOG ">>>    HQSERVER_MAPPED_HOSTNAME: ${env_HQSERVER_MAPPED_HOSTNAME}" N
@@ -333,15 +351,6 @@ then
 fi
 
 
-
-
-###
-### Setup links to configuration files 
-### into $INFORMIXDIR
-###    $ONCONFIG and SQLHOSTS 
-MSGLOG ">>>    Creating Links for sqlhosts/ONCONFIG " N 
-. $SCRIPTS/informix_setup_links.sh
-
 ###
 ### Update $HOSTNAME in various file(s) 
 ### 
@@ -451,6 +460,17 @@ then
    . $SCRIPTS/informix_setup_hqagent.sh 
 fi
 
+###
+### Setup HA  (PRI, SEC, RSS)
+### 
+if [[ ! -z $env_HA ]] 
+then
+   MSGLOG ">>>    Setting up HA! ..." N
+   . $SCRIPTS/informix_setup_ha.sh 
+fi
+
+
+
 
 ###
 ### Execute the init.d scripts 
@@ -505,6 +525,31 @@ SUCCESS=0
 FAILURE=-1
 
 ###
+### isEnvNotSet
+###
+
+function isEnvNotSet()
+{
+if [[ -z $1 ]]
+then
+   return $SUCCESS
+else 
+   return $FAILURE
+fi
+}
+
+function isEnvSet()
+{
+if [[ -z $1 ]]
+then
+   return $FAILURE
+else 
+   return $SUCCESS
+fi
+}
+
+
+###
 ### exec_S_initdb 
 ###
 function exec_S_initdb()
@@ -554,6 +599,7 @@ else
    return $FAILURE 
 fi
 }
+
 
 
 ###
@@ -615,15 +661,21 @@ fi
 
 if [[ $2 = "N" ]]
 then
-   #printf "%s\n" "$1" |tee -a $INIT_LOG
-   printf "%s\n" "$1" >> $INIT_LOG
+   [[ ! -z $INIT_LOG ]] && printf "%s\n" "$1" >> $INIT_LOG
    echo "$1" >&2
 else
    #printf "%s" "$1" |tee -a $INIT_LOG
-   printf "%s" "$1" >> $INIT_LOG
+   [[ ! -z $INIT_LOG ]] && printf "%s\n" "$1" >> $INIT_LOG
    echo "$1" >&2
 fi
 }
+
+function SED()
+{
+[[ `echo $3|tr /a-z/ /A-Z/` == "Y" ]] && MSGLOG  ">>>    SED $1 $2"
+sed -i --follow-symlinks "$1" "$2"
+}
+
 
 
 function finish_org()

@@ -114,8 +114,10 @@ function setCPUResources()
       MSGLOG ">>>    OVERRIDE CPUs set to 1 ..." N 
    fi
 
-   sed -i "s#^VPCLASS cpu.*#VPCLASS cpu,num=$E_NUMCPU,noage#g" "${ONCONFIG_PATH}"
-   sed -i "s#^MULTIPROCESSOR.*#MULTIPROCESSOR $E_MULTI#g" "${ONCONFIG_PATH}"
+   #sed -i "s#^VPCLASS cpu.*#VPCLASS cpu,num=$E_NUMCPU,noage#g" "${ONCONFIG_PATH}"
+   #sed -i "s#^MULTIPROCESSOR.*#MULTIPROCESSOR $E_MULTI#g" "${ONCONFIG_PATH}"
+   SED "s#^VPCLASS cpu.*#VPCLASS cpu,num=$E_NUMCPU,noage#g" "${INFORMIXDIR}/etc/${ONCONFIG}" Y
+   SED "s#^MULTIPROCESSOR.*#MULTIPROCESSOR $E_MULTI#g" "${INFORMIXDIR}/etc/${ONCONFIG}" Y
 
 
 

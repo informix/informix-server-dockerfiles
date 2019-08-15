@@ -3,15 +3,13 @@
 #  name:        informix_udpate_onconfig.sh:
 #  description: Make modifications to onconfig file 
 #  Called by:   informix_entry.sh
-#  ONCONFIG_PATH = $1 - ONCONFIG FILE 
-#  MODFILE = $2 - the modification file to use 
+#  MODFILE = $1 - the modification file to use 
 
 ADD=1
 UPDATE=2
 DELETE=3
 MOD=0
-ONCONFIG_PATH=$1
-MODFILE=$2
+MODFILE=$1
 
 IFS=" "
 
@@ -46,21 +44,21 @@ do
 
    if [[ $MOD == $DELETE ]]
    then
-   sed -i "/^${toks[0]}/d" $ONCONFIG_PATH
+   SED "/^${toks[0]}/d" $INFORMIXDIR/etc/$ONCONFIG
    fi
 
    if [[ $MOD == $ADD ]]
    then
-   cnt=`sed -n "/^${line}/p" $ONCONFIG_PATH |wc -l`
+   cnt=`sed -n "/^${line}/p" $INFORMIXDIR/etc/$ONCONFIG |wc -l`
       if [[ $cnt == "0" ]]
       then
-         echo $line >> $ONCONFIG_PATH
+         echo $line >> $$INFORMIXDIR/etc/$ONCONFIG
       fi
    fi
 
    if [[ $MOD == $UPDATE ]]
    then
-   sed -i "s/^${toks[0]}.*/${toks[0]} ${toks[1]}/g" $ONCONFIG_PATH
+      SED "s/^${toks[0]}.*/${toks[0]} ${toks[1]}/g" $INFORMIXDIR/etc/$ONCONFIG
    fi
 
 done < $MODFILE 
