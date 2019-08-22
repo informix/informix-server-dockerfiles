@@ -52,7 +52,7 @@ fi
 
 ## DBSERVERNAME Not read in yet so read it and adjust
 ## INFORMIXSERVER accordingly
-cat $ENVFILE
+#cat $ENVFILE
 if [[ ! -z $DBSERVERNAME ]] 
 then
 MSGLOG ">>>    RESETTING INFORMIXSERVER = ${DBSERVERNAME}"
@@ -60,7 +60,7 @@ sudo sed -i --follow-symlinks "s/INFORMIXSERVER=informix/INFORMIXSERVER=${DBSERV
 fi
 
 . $ENVFILE 
-cat $ENVFILE
+#cat $ENVFILE
 read_env
 
 }
@@ -78,6 +78,8 @@ env_HQSERVER_MAPPED_HTTP_PORT=`echo $HQSERVER_MAPPED_HTTP_PORT`
 env_HQSERVER_MAPPED_HOSTNAME=`echo $HQSERVER_MAPPED_HOSTNAME`
 env_HQADMIN_PASSWORD=`echo $HQADMIN_PASSWORD`
 env_INFORMIX_PASSWORD=`echo $INFORMIX_PASSWORD`
+env_DBA_USER=`echo $DBA_USER`
+env_DBA_PASSWORD=`echo $DBA_PASSWORD`
 env_DBSERVERNAME=`echo $DBSERVERNAME`
 
 env_MAPPED_HOSTNAME=`echo $MAPPED_HOSTNAME`
@@ -114,6 +116,22 @@ env_NONPDQ_PERCENTAGE=`echo $NONPDQ_PERCENTAGE`
 [[ -z $env_INFORMIX_PASSWORD ]] && env_INFORMIX_PASSWORD="in4mix" || sudo sh -c "echo 'informix:${env_INFORMIX_PASSWORD}' | chpasswd"
 [[ -z $env_HQADMIN_PASSWORD ]] && env_HQADMIN_PASSWORD="Passw0rd" 
 
+### Add DBA_USER
+if ( $(isEnvSet $env_DBA_USER) )
+then
+   MSGLOG ">>>    Adding User ${env_DBA_USER} ..." N
+   sudo sh -c "useradd -m ${env_DBA_USER} -s /bin/bash" 
+   if ( $(isEnvSet $env_DBA_PASSWORD) )
+   then
+      MSGLOG ">>>    ${env_DBA_USER}:${env_DBA_PASSWORD} ..." N
+      sudo sh -c "echo '${env_DBA_USER}:${env_DBA_PASSWORD}' | chpasswd"
+   else
+      MSGLOG ">>>    ${env_DBA_USER}:in4mix ..." N
+      sudo sh -c "echo '${env_DBA_USER}:in4mix' | chpasswd"
+   fi
+fi
+
+
 
  if [[ `echo ${env_HQSERVER}|tr /a-z/ /A-Z/` = "START" ]]
  then
@@ -123,6 +141,7 @@ env_NONPDQ_PERCENTAGE=`echo $NONPDQ_PERCENTAGE`
  fi
 
 [[ -z $env_TYPE ]] && env_TYPE="OLTP"
+[[ -z $env_SIZE ]] && env_TYPE="SMALL"
 
 if [[ ! -z $env_BUFFERS_PERCENTAGE && ! -z $env_SHMVIRT_PERCENTAGE && ! -z $env_NONPDQ_PERCENTAGE ]]
 then
@@ -156,6 +175,9 @@ fi
 
 MSGLOG ">>>    LICENSE: ${env_LICENSE}" N 
 MSGLOG ">>>    LICENSE_SERVER: ${env_LICENSE_SERVER}" N 
+MSGLOG ">>>    INFORMIX_PASSWORD: ${env_INFORMIX_PASSWORD}" N
+MSGLOG ">>>    DBA_USER: ${env_DBA_USER}" N
+MSGLOG ">>>    DBA_PASSWORD: ${env_DBA_PASSWORD}" N
 MSGLOG ">>>    INFORMIX_PASSWORD: ${env_INFORMIX_PASSWORD}" N
 MSGLOG ">>>    HQADMIN_PASSWORD: ${env_HQADMIN_PASSWORD}" N 
 MSGLOG ">>>    SIZE: ${env_SIZE}" N 
@@ -208,6 +230,17 @@ then
    MSGLOG ">>>    License was not accepted Exiting! ..." N
    exit
 fi
+
+###
+###  Check $INFORMIX_CONFIG_DIR - If mounted must have read write access for all 
+###
+touch $INFORMIX_CONFIG_DIR/tmpfile
+if [[ $? != "0" ]]
+then
+   MSGLOG ">>>    Config MOUNT directory needs 777 permissions. Exiting!  ..." N
+   exit
+fi
+rm $INFORMIX_CONFIG_DIR/tmpfile
 
 
 ###
@@ -331,13 +364,6 @@ then
    then
     MSGLOG ">>>        Using custom sch_init_informix.sql" N
       cp $INFORMIX_CONFIG_DIR/sch_init_informix.custom.sql $INFORMIXDIR/etc/sysadmin/sch_init_informix.sql 
-   elif [[ -z ${env_TYPE} ]]
-   then
-    MSGLOG ">>>        Using Small (Default) sch_init_informix.sql" N
-      cp $BASEDIR/sql/sch_init_informix.small.sql $INFORMIXDIR/etc/sysadmin/sch_init_informix.sql 
-   else
-    MSGLOG ">>>        Using Large (Default) sch_init_informix.sql" N
-      cp $BASEDIR/sql/sch_init_informix.large.sql $INFORMIXDIR/etc/sysadmin/sch_init_informix.sql 
    fi
 
    if [[ ! -z $env_INIT_FILE ]]

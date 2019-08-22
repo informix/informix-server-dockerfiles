@@ -31,6 +31,7 @@ else
    then
       cp $INFORMIXDIR/etc/onconfig.std $INFORMIXDIR/etc/$ONCONFIG
    else
+      MSGLOG ">>>        Copy onconfig.std  $INFORMIX_CONFIG_DIR/$ONCONFIG" N
       cp $INFORMIXDIR/etc/onconfig.std $INFORMIX_CONFIG_DIR/$ONCONFIG
       ln -s $INFORMIX_CONFIG_DIR/$ONCONFIG $INFORMIXDIR/etc/$ONCONFIG
    fi

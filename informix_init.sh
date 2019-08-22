@@ -15,13 +15,14 @@
 	ONLINE_LOG="${INFORMIX_DATA_DIR}/logs/online.log"
 	iter=0
 	while [ ${iter} -lt 120 ]; do
-		grep -i "sysadmin" ${ONLINE_LOG} 2>&1 1>/dev/null
+		grep -i "sysadmin" ${ONLINE_LOG} > /dev/null 2>&1 
 		if [ $? -eq 0 ]; then break; fi
 		iter=$((iter+1));
 		sleep 1;
 	done
 	if [ ${iter} -gt 120 ];then
 	  printf "\n\tProblem creating sysadmin with oninit\n"
+	  MSGLOG ">>>     Problem creating sysadmin with oninit"
           exit
 	fi
 	

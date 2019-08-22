@@ -20,6 +20,8 @@ else
    then
       touch $INFORMIXSQLHOSTS
    else
+      MSGLOG ">>>      touch $INFORMIX_CONFIG_DIR/sqlhosts" N
+      touch $INFORMIX_CONFIG_DIR/sqlhosts
       ln -s $INFORMIX_CONFIG_DIR/sqlhosts $INFORMIXSQLHOSTS
    fi
 fi

@@ -14,13 +14,13 @@ COPY informix_install.sh /opt/ibm/scripts
 COPY informix_prune.sh  /opt/ibm/scripts
 COPY informix_inf.env   /opt/ibm/scripts
 RUN ln -s  /opt/ibm/scripts/informix_inf.env /usr/local/bin/informix_inf.env
-COPY dinit.c            /opt/ibm/
+COPY dinit.c            /opt/ibm/scripts
 
 
 COPY informix_install.properties /opt/ibm/informix_install.properties
 
 
-RUN cc /opt/ibm/dinit.c -o /opt/ibm/dinit
+RUN cc /opt/ibm/scripts/dinit.c -o /opt/ibm/scripts/dinit
 RUN /bin/bash /opt/ibm/scripts/informix_install.sh
 RUN /bin/bash /opt/ibm/scripts/informix_prune.sh
 RUN /bin/tar -C /opt/ibm -cvf /tmp/informix.prune.tar informix
