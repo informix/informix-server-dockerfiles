@@ -7,6 +7,7 @@ TAG_IFX=informix-de
 docker build -t ${TAG_OS} -f Dockerfile.os .
 
 sed -i 's/hcl/ibm/g' Dockerfile.prune
+sed -i 's/hcl/ibm/g' Dockerfile.base
 
 ### Build Prune Phase
 docker build -t ${TAG_IFX}-prune -f Dockerfile.prune .
