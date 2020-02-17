@@ -1,13 +1,16 @@
 #!/bin/bash
 
-TAG_OS=debian-os
+TAG_OS=os-ubi
 TAG_IFX=informix-de
 
-### Build os-debian
+### Build os-ubi
 docker build -t ${TAG_OS} -f Dockerfile.os .
 
 sed -i 's/hcl/ibm/g' Dockerfile.prune
 sed -i 's/hcl/ibm/g' Dockerfile.base
+sed -i 's/hcl/ibm/g' informix_prune.sh 
+sed -i 's/hcl/ibm/g' informix_inf.env 
+sed -i 's/hcl/ibm/g' informix_install.properties 
 
 ### Build Prune Phase
 docker build -t ${TAG_IFX}-prune -f Dockerfile.prune .
