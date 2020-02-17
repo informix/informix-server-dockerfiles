@@ -4,7 +4,10 @@
 #  description: Setup the onconfig file 
 #  Called by:   informix_entry.sh
 
+TRUE=1
+FALSE=0
 
+## Defaults
 E_TAPEDEV="/dev/null"
 E_LTAPEDEV="/dev/null"
 E_LOCKMODE="row"
@@ -12,7 +15,16 @@ E_SBSPACE="sbspace"
 E_ROOTPATH="$INFORMIX_DATA_DIR/spaces/rootdbs.000"
 E_CONSOLE="$INFORMIX_DATA_DIR/logs/console.log"
 E_MSGPATH="$INFORMIX_DATA_DIR/logs/online.log"
+
 ( $(isEnvSet $env_DBSERVERNAME) ) && E_DBSERVERNAME=$env_DBSERVERNAME || E_DBSERVERNAME="informix"
+
+if ( ifFileExists $INFORMIX_CONFIG_DIR/onconfig)
+then
+   FILEEXISTS=1
+else
+   FILEEXISTS=0
+fi
+
 
 if ( $(isEnvSet $env_ONCONFIG_FILE) ) 
 then
@@ -20,10 +32,8 @@ then
    if [[ $env_STORAGE == "LOCAL" ]]
    then
       cp $INFORMIX_CONFIG_DIR/$env_ONCONFIG_FILE $INFORMIXDIR/etc/$ONCONFIG
-      #ONCONFIG_PATH=$INFORMIXDIR/etc/$ONCONFIG
    else
       ln -s $INFORMIX_CONFIG_DIR/$env_ONCONFIG_FILE $INFORMIXDIR/etc/$ONCONFIG
-      #ONCONFIG_PATH=$INFORMIX_CONFIG_DIR/$env_ONCONFIG_FILE
    fi    
 else
    MSGLOG ">>>        Creating DEFAULT onconfig" N
@@ -31,14 +41,16 @@ else
    then
       cp $INFORMIXDIR/etc/onconfig.std $INFORMIXDIR/etc/$ONCONFIG
    else
-      MSGLOG ">>>        Copy onconfig.std  $INFORMIX_CONFIG_DIR/$ONCONFIG" N
-      cp $INFORMIXDIR/etc/onconfig.std $INFORMIX_CONFIG_DIR/$ONCONFIG
+      if [[ $FILEEXISTS -eq $FALSE ]]
+      then
+         MSGLOG ">>>        Copy onconfig.std  $INFORMIX_CONFIG_DIR/$ONCONFIG" N
+         cp $INFORMIXDIR/etc/onconfig.std $INFORMIX_CONFIG_DIR/$ONCONFIG
+      else
+         MSGLOG ">>>        Using Existing ONCONFIG $INFORMIX_CONFIG_DIR/$ONCONFIG" N
+      fi
       ln -s $INFORMIX_CONFIG_DIR/$ONCONFIG $INFORMIXDIR/etc/$ONCONFIG
    fi
 fi
-
-#sudo chown informix:informix "${ONCONFIG_PATH}"
-#sudo chmod 660 "${ONCONFIG_PATH}"
 
 
 SED "s#^ROOTPATH .*#ROOTPATH $E_ROOTPATH#g"  $INFORMIXDIR/etc/$ONCONFIG        
@@ -54,35 +66,38 @@ SED "s#^DEF_TABLE_LOCKMODE page#DEF_TABLE_LOCKMODE $E_LOCKMODE#g" $INFORMIXDIR/e
 [[ $env_PORT_DRDA == "ON" ]] && SED "s#^DBSERVERALIASES.*#DBSERVERALIASES ${E_DBSERVERNAME}_dr#g" $INFORMIXDIR/etc/$ONCONFIG 
 ( $(isEnvSet $env_LICENSE_SERVER) ) && SED "s#^LICENSE_SERVER.*#LICENSE_SERVER $env_LICENSE_SERVER#g"      $INFORMIXDIR/etc/$ONCONFIG 
 
-#if [[ $env_PORT_DRDA == "ON" ]]
-#then
-#   MSGLOG ">>>        Setting dbserveraliases" N 
-#   SED "s#^DBSERVERALIASES.*#DBSERVERALIASES ${E_DBSERVERNAME}_dr#g" $INFORMIXDIR/etc/$ONCONFIG 
-#fi
-
-
-#if [[ ! -z $env_LICENSE_SERVER ]]
-#then
-#   SED "s#^LICENSE_SERVER.*#LICENSE_SERVER $env_LICENSE_SERVER#g"      $INFORMIXDIR/etc/$ONCONFIG 
-#fi
 
 
 if [[ $env_SIZE = "SMALL" ]]
 then
   MSGLOG ">>>        Setting up Small System" n
-  . $SCRIPTS/informix_update_onconfig.sh $SCRIPTS/informix_config.small
+  . $SCRIPTS/informix_update_onconfig.sh $SCRIPTS/informix_config.small $INFORMIXDIR/etc/$ONCONFIG
 elif [[ $env_SIZE = "MEDIUM" ]]
 then
   MSGLOG ">>>        Setting up Medium System" n
-  . $SCRIPTS/informix_update_onconfig.sh $SCRIPTS/informix_config.medium
+  . $SCRIPTS/informix_update_onconfig.sh $SCRIPTS/informix_config.medium $INFORMIXDIR/etc/$ONCONFIG
 elif [[ $env_SIZE = "LARGE" ]]
 then
   MSGLOG ">>>        Setting up Large System" n
-  . $SCRIPTS/informix_update_onconfig.sh $ONCONFIG_PATH $SCRIPTS/informix_config.large
-else
+  . $SCRIPTS/informix_update_onconfig.sh $SCRIPTS/informix_config.large $INFORMIXDIR/etc/$ONCONFIG
+elif [[ $env_SIZE = "FULL" ]]
+then
    ### env_SIZE not set or set to a number (Percentage) 
    . $SCRIPTS/informix_calculate_onconfig.sh $INFORMIXDIR/etc/$ONCONFIG  
 fi
+
+if ( ifFileExists $INFORMIX_FILES_DIR/onconfig.mod )
+then
+  MSGLOG ">>>        Modifying ONCONFIG" n
+  . $SCRIPTS/informix_update_config_file.sh $INFORMIX_FILES_DIR/onconfig.mod $INFORMIXDIR/etc/$ONCONFIG " "
+elif ( ifFileExists $INFORMIX_CONFIG_DIR/onconfig.mod )
+then
+  MSGLOG ">>>        Modifying ONCONFIG" n
+  . $SCRIPTS/informix_update_config_file.sh $INFORMIX_CONFIG_DIR/onconfig.mod $INFORMIXDIR/etc/$ONCONFIG " "
+fi
+
+
+
 
 
 if [[ ! -z $env_HA ]] 

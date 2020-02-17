@@ -19,6 +19,13 @@ else
    OPT=$1
 fi
 
+###
+### Globals - Maybe put into env section  as needed.
+###
+MONGO_PROP_FILENAME=wl_mongo.properties
+REST_PROP_FILENAME=wl_rest.properties
+MQTT_PROP_FILENAME=wl_mqtt.properties
+
 
 function set_env() {
 
@@ -46,9 +53,11 @@ then
    if [[ $cnt = "0" ]];
    then
    MSGLOG ">>>    Ressetting INFORMIX_DATA_DIR ..." N
-   sudo sed -i --follow-symlinks "s/data/localdata/g" ${ENVFILE} 
+   SED "s/data/localdata/g" ${ENVFILE} 
    fi
 fi
+
+
 
 ## DBSERVERNAME Not read in yet so read it and adjust
 ## INFORMIXSERVER accordingly
@@ -56,7 +65,7 @@ fi
 if [[ ! -z $DBSERVERNAME ]] 
 then
 MSGLOG ">>>    RESETTING INFORMIXSERVER = ${DBSERVERNAME}"
-sudo sed -i --follow-symlinks "s/INFORMIXSERVER=informix/INFORMIXSERVER=${DBSERVERNAME}/g" ${ENVFILE} 
+SED "s/INFORMIXSERVER=informix/INFORMIXSERVER=${DBSERVERNAME}/g" ${ENVFILE} 
 fi
 
 . $ENVFILE 
@@ -72,8 +81,11 @@ env_SIZE=`echo $SIZE|tr /a-z/ /A-Z/`
 env_TYPE=`echo $TYPE|tr /a-z/ /A-Z/`
 
 env_HA=`echo $HA|tr /a-z/ /A-Z/`
+env_HA_PRIMARY=`echo $HA_PRIMARY`
+env_HA_PRI_DBSERVERNAME=`echo $HA_PRI_DBSERVERNAME`
 env_HQSERVER=`echo $HQSERVER`
 env_HQAGENT=`echo $HQAGENT|tr /a-z/ /A-Z/`
+env_HQSETUP=`echo $HQSETUP|tr /a-z/ /A-Z/`
 env_HQSERVER_MAPPED_HTTP_PORT=`echo $HQSERVER_MAPPED_HTTP_PORT`
 env_HQSERVER_MAPPED_HOSTNAME=`echo $HQSERVER_MAPPED_HOSTNAME`
 env_HQADMIN_PASSWORD=`echo $HQADMIN_PASSWORD`
@@ -82,6 +94,8 @@ env_DBA_USER=`echo $DBA_USER`
 env_DBA_PASSWORD=`echo $DBA_PASSWORD`
 env_DBSERVERNAME=`echo $DBSERVERNAME`
 
+[[ -z $env_DBSERVERNAMAE ]] && DEF_INIT_FILENAME="sch_init_informix.sql"  || DEF_INIT_FILENAME="sch_init_${env_DBSERVERNAME}_.sql"
+
 env_MAPPED_HOSTNAME=`echo $MAPPED_HOSTNAME`
 env_MAPPED_SQLI_PORT=`echo $MAPPED_SQLI_PORT`
 
@@ -89,6 +103,9 @@ env_LICENSE=`echo $LICENSE|tr /a-z/ /A-Z/`
 env_LICENSE_SERVER=`echo $LICENSE_SERVER`
 env_ONCONFIG_FILE=`echo $ONCONFIG_FILE`
 env_SQLHOSTS_FILE=`echo $SQLHOSTS_FILE`
+env_REST_PROP_FILE=`echo $REST_PROP_FILE`
+env_MONGO_PROP_FILE=`echo $MONGO_PROP_FILE`
+env_MQTT_PROP_FILE=`echo $MQTT_PROP_FILE`
 env_INIT_FILE=`echo $INIT_FILE`
 env_CONFIGURE_INIT=`echo $CONFIGURE_INIT`
 env_RUN_FILE_PRE_INIT=`echo $RUN_FILE_PRE_INIT`
@@ -141,7 +158,17 @@ fi
  fi
 
 [[ -z $env_TYPE ]] && env_TYPE="OLTP"
-[[ -z $env_SIZE ]] && env_TYPE="SMALL"
+if [[ -z $env_SIZE ]]
+then
+  if (isDE || isIE) 
+  then
+     env_SIZE="SMALL"
+  else
+     env_SIZE="MEDIUM"
+  fi
+fi
+
+
 
 if [[ ! -z $env_BUFFERS_PERCENTAGE && ! -z $env_SHMVIRT_PERCENTAGE && ! -z $env_NONPDQ_PERCENTAGE ]]
 then
@@ -192,6 +219,9 @@ MSGLOG ">>>    MAPPED_SQLI_PORT: ${env_MAPPED_SQLI_PORT}" N
 MSGLOG ">>>" N
 MSGLOG ">>>    ONCONFIG_FILE: ${env_ONCONFIG_FILE}" N
 MSGLOG ">>>    SQLHOSTS_FILE: ${env_SQLHOSTS_FILE}" N
+MSGLOG ">>>    REST_PROP_FILE: ${env_REST_PROP_FILE}" N
+MSGLOG ">>>    MONGO_PROP_FILE: ${env_MONGO_PROP_FILE}" N
+MSGLOG ">>>    MQTT_PROP_FILE: ${env_MQTT_PROP_FILE}" N
 MSGLOG ">>>    DBSERVERNAME: ${env_DBSERVERNAME}" N
 MSGLOG ">>>    INIT_FILE: ${env_INIT_FILE}" N
 MSGLOG ">>>    RUN_FILE_PRE_INIT: ${env_RUN_FILE_PRE_INIT}" N
@@ -204,8 +234,11 @@ MSGLOG ">>>    PORT_MONGO: ${env_PORT_MONGO}" N
 MSGLOG ">>>    PORT_MQTT: ${env_PORT_MQTT}" N
 MSGLOG ">>>" N
 MSGLOG ">>>    HA: ${env_HA}" N
+MSGLOG ">>>    HA_PRIMARY: ${env_HA_PRIMARY}" N
+MSGLOG ">>>    HA_PRI_DBSERVERNAME: ${env_HA_PRI_DBSERVERNAME}" N
 MSGLOG ">>>    HQSERVER: ${env_HQSERVER}" N
 MSGLOG ">>>    HQAGENT: ${env_HQAGENT}" N
+MSGLOG ">>>    HQSETUP: ${env_HQSETUP}" N
 MSGLOG ">>>    HQSERVER_MAPPED_HOSTNAME: ${env_HQSERVER_MAPPED_HOSTNAME}" N
 MSGLOG ">>>    HQSERVER_MAPPED_HTTP_PORT: ${env_HQSERVER_MAPPED_HTTP_PORT}" N 
 MSGLOG ">>>" N
@@ -218,6 +251,9 @@ main()
 {
 
 set_env
+
+
+
 
 dt=`date`
 MSGLOG ">>>    Starting container/image ($dt) ..." N
@@ -242,7 +278,6 @@ then
 fi
 rm $INFORMIX_CONFIG_DIR/tmpfile
 
-
 ###
 ### Run CONFIGURE_INIT shell script 
 ### 
@@ -252,8 +287,14 @@ then
    if [[ `echo ${env_CONFIGURE_INIT}|tr /a-z/ /A-Z/` != "NO" ]]  
    then
       MSGLOG ">>>    Running CONFIGURE INIT script $env_CONFIGURE_INIT ..." N
-      sudo chmod 755 $INFORMIX_CONFIG_DIR/$env_CONFIGURE_INIT
-      . $INFORMIX_CONFIG_DIR/$env_CONFIGURE_INIT
+      if ( ifFileExists $INFORMIX_FILES_DIR/$env_CONFIGURE_INIT )
+      then
+         sudo chmod 777 $INFORMIX_FILES_DIR/$env_CONFIGURE_INIT
+         . $INFORMIX_FILES_DIR/$env_CONFIGURE_INIT
+      else
+         sudo chmod 777 $INFORMIX_CONFIG_DIR/$env_CONFIGURE_INIT
+         . $INFORMIX_CONFIG_DIR/$env_CONFIGURE_INIT
+      fi
    else
       MSGLOG ">>>    NOT Configuring System ..." N
       sudo cp $SCRIPTS/informix_entry_basic.sh $SCRIPTS/informix_entry.sh
@@ -263,12 +304,22 @@ then
 fi
 
 
+### Starting Installed Services
+###
+
+SERVICE_LIST="ssh nscd"
 ###
 ###  Starting ssh
 ###
-#MSGLOG ">>>    Starting sshd ..." N
-#sudo service ssh start
-
+for i in $SERVICE_LIST
+do
+   cnt=`sudo service $i status|wc -l`
+   if [[ $cnt != "0" ]];
+   then
+      MSGLOG ">>>    SERVICE $i Installed Starting service ..." N
+      sudo service $i start
+   fi
+done
 
 
 
@@ -288,8 +339,7 @@ then
 
    MSGLOG ">>>    Installing GSKIT! ..." N
    sudo $INFORMIXDIR/gskit/installgskit
-   #sudo touch /etc/hosts.equiv
-   #sudo sh -c "printf '++\n' >> /etc/hosts.equiv"
+   
 else
    cnt=`grep informix_inf ~informix/.bashrc|wc -l`
    if [[ $cnt = "0" ]];
@@ -321,55 +371,70 @@ fi
 ###
 ### Setup sqlhosts file
 ### 
-if (isNotInitialized)
-then
+# if (isNotInitialized)
+# then
    MSGLOG ">>>    Create sqlhosts file ..." N
    MSGLOG ">>>        [$INFORMIXSQLHOSTS]"  N
    . $SCRIPTS/informix_setup_sqlhosts.sh
-fi
+# fi
 MSGLOG "       [COMPLETED]" N 
 
 
 ###
 ### Setup $ONCONFIG file
 ### 
-if (isNotInitialized)
-then
+# if (isNotInitialized)
+# then
    MSGLOG ">>>    Create ONCONFIG file ..."  N
    MSGLOG ">>>        [$INFORMIXDIR/etc/$ONCONFIG]" N  
    . $SCRIPTS/informix_setup_onconfig.sh $OPT
    MSGLOG "       [COMPLETED]" N 
-fi
+# fi
 
 ###
 ### Setup sch_init_xxxxxxx.sql script 
 ### 
 if (isNotInitialized)
 then
-   MSGLOG ">>>    Setting sch_init_informix.sql file ..."  N
+   MSGLOG ">>>    Setting $DEF_INIT_FILENAME file ..."  N
 
    if [[ $env_SIZE == "SMALL" ]]
    then
-    MSGLOG ">>>        Using Small sch_init_informix.sql" N
-      cp $BASEDIR/sql/sch_init_informix.small.sql $INFORMIXDIR/etc/sysadmin/sch_init_informix.sql 
+    MSGLOG ">>>        Using Small $DEF_INIT_FILENAME" N
+      cp $BASEDIR/sql/sch_init_informix.small.sql $INFORMIXDIR/etc/sysadmin/$DEF_INIT_FILENAME
    elif [[ $env_SIZE == "MEDIUM" ]]
    then
-    MSGLOG ">>>        Using Medium sch_init_informix.sql" N
-      cp $BASEDIR/sql/sch_init_informix.medium.sql $INFORMIXDIR/etc/sysadmin/sch_init_informix.sql 
+    MSGLOG ">>>        Using Medium $DEF_INIT_FILENAME" N
+      cp $BASEDIR/sql/sch_init_informix.medium.sql $INFORMIXDIR/etc/sysadmin/$DEF_INIT_FILENAME
    elif [[ $env_SIZE == "LARGE" ]]
    then
-    MSGLOG ">>>        Using Large sch_init_informix.sql" N
-      cp $BASEDIR/sql/sch_init_informix.large.sql $INFORMIXDIR/etc/sysadmin/sch_init_informix.sql 
+    MSGLOG ">>>        Using Large $DEF_INIT_FILENAME" N
+      cp $BASEDIR/sql/sch_init_informix.large.sql $INFORMIXDIR/etc/sysadmin/$DEF_INIT_FILENAME 
    elif [[ $env_SIZE == "CUSTOM" ]]
    then
-    MSGLOG ">>>        Using custom sch_init_informix.sql" N
-      cp $INFORMIX_CONFIG_DIR/sch_init_informix.custom.sql $INFORMIXDIR/etc/sysadmin/sch_init_informix.sql 
+    MSGLOG ">>>        Using custom $DEF_INIT_FILENAME" N
+      cp $INFORMIX_CONFIG_DIR/sch_init_informix.custom.sql $INFORMIXDIR/etc/sysadmin/$DEF_INIT_FILENAME
    fi
 
-   if [[ ! -z $env_INIT_FILE ]]
+   if ( $(isEnvSet $env_INIT_FILE) )
    then
       MSGLOG ">>>        Using $env_INIT_FILE supplied by user" N
-      cp $INFORMIX_CONFIG_DIR/$env_INIT_FILE $INFORMIXDIR/etc/sysadmin/sch_init_informix.sql 
+      if ( ifFileExists $INFORMIX_FILES_DIR/$env_INIT_FILE )
+      then
+         cp $INFORMIX_FILES_DIR/$env_INIT_FILE $INFORMIXDIR/etc/sysadmin/$DEF_INIT_FILENAME 
+      else
+         cp $INFORMIX_CONFIG_DIR/$env_INIT_FILE $INFORMIXDIR/etc/sysadmin/$DEF_INIT_FILENAME 
+      fi
+   else
+      if ( ifFileExists $INFORMIX_CONFIG_DIR/$DEF_INIT_FILENAME)
+      then
+         MSGLOG ">>>        Using $env_INIT_FILE supplied by user" N
+         cp $INFORMIX_CONFIG_DIR/$DEF_INIT_FILENAME $INFORMIXDIR/etc/sysadmin/$DEF_INIT_FILENAME
+      elif ( ifFileExists $INFORMIX_FILES_DIR/$DEF_INIT_FILENAME)
+      then
+         MSGLOG ">>>        Using $env_INIT_FILE supplied by user" N
+         cp $INFORMIX_FILES_DIR/$DEF_INIT_FILENAME $INFORMIXDIR/etc/sysadmin/$DEF_INIT_FILENAME
+      fi
    fi
 
 
@@ -417,9 +482,15 @@ if [[ ! -z $env_RUN_FILE_PRE_INIT ]]
 then
    if (isNotInitialized)
    then
-      MSGLOG ">>>    Running PRE INIT FILE $env_RUN_FILE_POST_INIT ..." N
-      sudo chmod 755 $INFORMIX_CONFIG_DIR/$env_RUN_FILE_PRE_INIT
-      . $INFORMIX_CONFIG_DIR/$env_RUN_FILE_PRE_INIT 
+   MSGLOG ">>>    Running PRE INIT FILE $env_RUN_FILE_PRE_INIT ..." N
+      if ( ifFileExists $INFORMIX_FILES_DIR/$env_RUN_FILE_PRE_INIT )
+      then
+         sudo chmod 777 $INFORMIX_FILES_DIR/$env_RUN_FILE_PRE_INIT
+         . $INFORMIX_FILES_DIR/$env_RUN_FILE_PRE_INIT 
+      else
+         sudo chmod 777 $INFORMIX_CONFIG_DIR/$env_RUN_FILE_PRE_INIT
+         . $INFORMIX_CONFIG_DIR/$env_RUN_FILE_PRE_INIT 
+      fi
    fi
 fi
 
@@ -451,15 +522,23 @@ MSGLOG "       [COMPLETED]" N
 ###
 ### Run RUN_FILE_POST_INIT shell script 
 ### 
-if [[ ! -z $env_RUN_FILE_POST_INIT ]]
-then
-   if (isNotInitialized)
-   then
-      MSGLOG ">>>    Running POST INIT FILE $env_RUN_FILE_POST_INIT ..." N
-      sudo chmod 755 $INFORMIX_CONFIG_DIR/$env_RUN_FILE_POST_INIT
-      . $INFORMIX_CONFIG_DIR/$env_RUN_FILE_POST_INIT 
-   fi
-fi
+# if [[ ! -z $env_RUN_FILE_POST_INIT ]]
+# then
+#    if (isNotInitialized)
+#    then
+#       MSGLOG ">>>    Running POST INIT FILE $env_RUN_FILE_POST_INIT ..." N
+#       if ( ifFileExists $INFORMIX_FILES_DIR/$env_RUN_FILE_POST_INIT )
+#       then
+#          MSGLOG ">>>    $INFORMIX_FILES_DIR/$env_RUN_FILE_POST_INIT ..." N
+#          sudo chmod 777 $INFORMIX_FILES_DIR/$env_RUN_FILE_POST_INIT
+#          . $INFORMIX_FILES_DIR/$env_RUN_FILE_POST_INIT 
+#       else
+#          MSGLOG ">>>    $INFORMIX_CONFIG_DIR/$env_RUN_FILE_POST_INIT ..." N
+#          sudo chmod 777 $INFORMIX_CONFIG_DIR/$env_RUN_FILE_POST_INIT
+#          . $INFORMIX_CONFIG_DIR/$env_RUN_FILE_POST_INIT 
+#       fi
+#    fi
+# fi
 
 ###
 ### Setup Wire Listeners  - 
@@ -487,6 +566,15 @@ then
 fi
 
 ###
+### Setup HQ (monitoring, dashboards) 
+### 
+if ( $(isEnvSet $env_HQSETUP) )
+then
+   MSGLOG ">>>    Setting up HQ Agent! ..." N
+   . $SCRIPTS/informix_setup_hqsetup.sh 
+fi
+
+###
 ### Setup HA  (PRI, SEC, RSS)
 ### 
 if [[ ! -z $env_HA ]] 
@@ -496,6 +584,26 @@ then
 fi
 
 
+###
+### Run RUN_FILE_POST_INIT shell script 
+### 
+if [[ ! -z $env_RUN_FILE_POST_INIT ]]
+then
+   if (isNotInitialized)
+   then
+      MSGLOG ">>>    Running POST INIT FILE $env_RUN_FILE_POST_INIT ..." N
+      if ( ifFileExists $INFORMIX_FILES_DIR/$env_RUN_FILE_POST_INIT )
+      then
+         MSGLOG ">>>    $INFORMIX_FILES_DIR/$env_RUN_FILE_POST_INIT ..." N
+         sudo chmod 777 $INFORMIX_FILES_DIR/$env_RUN_FILE_POST_INIT
+         . $INFORMIX_FILES_DIR/$env_RUN_FILE_POST_INIT 
+      else
+         MSGLOG ">>>    $INFORMIX_CONFIG_DIR/$env_RUN_FILE_POST_INIT ..." N
+         sudo chmod 777 $INFORMIX_CONFIG_DIR/$env_RUN_FILE_POST_INIT
+         . $INFORMIX_CONFIG_DIR/$env_RUN_FILE_POST_INIT 
+      fi
+   fi
+fi
 
 
 ###
@@ -548,11 +656,32 @@ finish_shutdown
 #####################################################################
 
 SUCCESS=0
-FAILURE=-1
+#FAILURE=-1
+FAILURE=1
 
 ###
 ### isEnvNotSet
 ###
+
+function ifFileExists()
+{
+if [[ -f $1 ]]
+then
+   return $SUCCESS
+else 
+   return $FAILURE
+fi
+}
+
+function ifFileNotExists()
+{
+if [[ -f $1 ]]
+then
+   return $FAILURE
+else 
+   return $SUCCESS
+fi
+}
 
 function isEnvNotSet()
 {
@@ -699,7 +828,15 @@ fi
 function SED()
 {
 [[ `echo $3|tr /a-z/ /A-Z/` == "Y" ]] && MSGLOG  ">>>    SED $1 $2"
-sed -i --follow-symlinks "$1" "$2"
+sudo sed -i --follow-symlinks "$1" "$2"
+}
+
+function RUNAS()
+{
+USER=$1
+CMD=$2
+MSGLOG ">>>    RUNAS: $1  $2"
+sudo -u $1 sh -c ". $ENVFILE && $2"
 }
 
 
@@ -716,9 +853,122 @@ wait $!
 function finish_shutdown()
 {
 MSGLOG ">>> " N
-MSGLOG ">>>    SIGNAL received - Shutdown:" N
+MSGLOG ">>>    SIGNAL received - Shutdown (finish_shutdown):" N
 MSGLOG ">>> " N
 . $BASEDIR/scripts/informix_stop.sh
+}
+
+###
+### Function waitForSysadmin
+###    Wait for sysadmin database to exist
+###
+function getDomain() {
+NAME=$1
+domain=`ping -c 1 ${NAME}|grep icmp `
+MSGLOG ">>>  GETDOMAIN: $domain"
+domain=`ping -c 1 ${NAME}|grep icmp |awk '{print $4}' `
+MSGLOG ">>>  GETDOMAIN: $domain"
+domain=`ping -c 1 ${NAME}|grep icmp |awk '{print $4}' | cut -d '.' -f2 `
+MSGLOG ">>>  GETDOMAIN: $domain"
+echo $domain
+}
+
+###
+### 
+### 
+function waitForHAWL() {
+while true
+do  
+### What is best host here ??  $HOSTNAME ??   
+
+   DB=`curl http://${env_HA_PRIMARY}:27018/sysmaster/sysdatabases 2>/dev/null|jq '.[] |select(.name=="sysmaster") | .name' | sed -e 's/"//g' `
+   if [[ $DB == "sysmaster" ]]
+   then
+      MSGLOG ">>> Wire Listener Available."
+      return
+   else
+      MSGLOG ">>> Wire Listener NOT Available yet."
+      sleep 5
+   fi
+done
+}
+
+
+###
+### 
+### 
+function waitForWL() {
+while true
+do  
+   DB=`curl http://${HOSTNAME}:27018/sysmaster/sysdatabases 2>/dev/null|jq '.[] |select(.name=="sysmaster") | .name' | sed -e 's/"//g' `
+   if [[ $DB == "sysmaster" ]]
+   then
+      MSGLOG ">>> Wire Listener Available."
+      return
+   else
+      MSGLOG ">>> Wire Listener NOT Available yet."
+      sleep 5
+   fi
+done
+}
+
+###
+### Function waitForSysadmin
+###    Wait for sysadmin database to exist
+###
+function waitForSysadmin() {
+while true
+do  
+   cnt=`echo "select count(*) from sysdatabases where name='sysadmin' "| dbaccess sysmaster - |grep -v count|tr -d ' \n'`
+   if [[ $cnt == "1" ]]
+   then
+      break
+   else
+      sleep 1
+   fi
+done
+}
+
+
+###
+### Function waitForSysadmin
+###    Wait for sysadmin database to exist
+###
+function waitForRemoteSQLI() {
+REMOTE_SERVER=$1
+while true 
+do
+   cnt=`curl http://${REMOTE_SERVER}:9088 2>&1|grep Empty|wc -l `
+   if [[ $cnt == "1" ]]
+   then
+      break
+   else
+      sleep 1
+   fi
+
+done
+}
+
+
+
+
+function waitForHQSERVER() {
+
+MSGLOG "DEBUG: HQSERVER_MAPPED_HOSTNAME: ${env_HQSERVER_MAPPED_HOSTNAME}" 
+MSGLOG "DEBUG: HQSERVER_MAPPED_HTTP_PORT: ${env_HQSERVER_MAPPED_HTTP_PORT}" 
+while true
+do   
+   CNT=`curl http://${env_HQSERVER_MAPPED_HOSTNAME}:${env_HQSERVER_MAPPED_HTTP_PORT} 2>/dev/null|grep InformixHQ |wc -l`
+MSGLOG "DEBUG: CNT: ${CNT}" 
+   if [[ $CNT != "0" ]]
+   then
+      MSGLOG ">>> HQServer Available."
+      return
+   else
+      MSGLOG ">>> HQServer NOT Available yet."
+      sleep 5
+   fi
+done
 }
 
 

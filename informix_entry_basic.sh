@@ -63,7 +63,7 @@ finish_shutdown
 #####################################################################
 
 SUCCESS=0
-FAILURE=-1
+FAILURE=1
 
 
 function isLicenseAccepted()

@@ -1,28 +1,47 @@
-FROM debian-os as base
+FROM os-ubi as base
 
-RUN mkdir -p /opt/ibm                                      && \
-    mkdir -p /opt/ibm/informix                             && \
-    mkdir -p /opt/ibm/scripts                              && \
-    mkdir -p /opt/ibm/sql                                  && \
-    mkdir -p /opt/ibm/data                                 && \
-    mkdir -p /opt/ibm/localdata                            && \
-    mkdir -p /opt/ibm/config                               && \
-    chown -R informix:informix        /opt/ibm
+RUN mkdir -p /opt/hcl                                      && \
+    mkdir -p /opt/hcl/tmp                                  && \
+    mkdir -p /opt/hcl/informix                             && \
+    mkdir -p /opt/hcl/scripts                              && \
+    mkdir -p /opt/hcl/sql                                  && \
+    mkdir -p /opt/hcl/data                                 && \
+    mkdir -p /opt/hcl/files                                && \
+    mkdir -p /opt/hcl/localdata                            && \
+    mkdir -p /opt/hcl/config                               && \
+    mkdir -p /licenses                                     && \
+    chown -R informix:informix        /opt/hcl
+
+LABEL name="Informix Database Server"    \
+      vendor="HCL"                       \
+      version="14.10.3"                  \ 
+      summary="Informix Docker Image"    \
+      description="Informix Docker image" \
+      commit="LABEL-COMMIT-HASH" \
+      edition="LABEL-EDITION"    \
+      build-date="LABEL-DATE"
+
+COPY    *.sh informix_config.* informix_inf.env dinit *.sql *.txt    /opt/hcl/tmp/ 
+ADD     informix.prune.tar                /opt/hcl
+
+RUN     mv /opt/hcl/tmp/*.sh /opt/hcl/scripts/                     && \
+        mv /opt/hcl/tmp/informix_config.* /opt/hcl/scripts/        && \
+        mv /opt/hcl/tmp/informix_inf.env  /opt/hcl/scripts/        && \
+        mv /opt/hcl/tmp/dinit  /opt/hcl/scripts/                   && \
+        mv /opt/hcl/tmp/*.sql /opt/hcl/sql/                        && \
+        cp /opt/hcl/informix/license/*.txt /licenses/              && \
+        touch /licenses/additional_licenses.txt                    && \ 
+        cat /opt/hcl/tmp/license.os.ubi.txt >> /licenses/additional_licenses.txt && \
+        ln -s /opt/hcl/scripts/informix_inf.env      /usr/local/bin/informix_inf.env  
 
 
-COPY    *.sh informix_config.* informix_inf.env dinit    /opt/ibm/scripts/ 
-COPY    *.sql                                            /opt/ibm/sql/
-RUN     ln -s /opt/ibm/scripts/informix_inf.env      /usr/local/bin/informix_inf.env 
+VOLUME     ["/opt/hcl/data", "/opt/hcl/config", "/opt/hcl/files"]
 
-ADD     informix.prune.tar                /opt/ibm
-
-
-VOLUME     ["/opt/ibm/data", "/opt/ibm/config"]
-
-HEALTHCHECK --interval=10s --timeout=5s --retries=1 --start-period=60s CMD /opt/ibm/scripts/informix_status.sh  || exit 1
+HEALTHCHECK --interval=10s --timeout=5s --retries=1 --start-period=60s CMD /opt/hcl/scripts/informix_status.sh  || exit 1
 
 USER informix 
 WORKDIR /home/informix
+
 STOPSIGNAL SIGTERM 
 
 ### EXPOSE
@@ -32,7 +51,7 @@ STOPSIGNAL SIGTERM
 ###    rest port    - 27018 
 ###    mqtt port    - 27883
 
-#EXPOSE 9088 9089 27017 27018 27883 8080
+EXPOSE 9088 9089 27017 27018 27883 8080
 
 ###  ENTRYPOINT:
 ###     arg1:  Name of the C program used to manage the starting/stopping
@@ -43,7 +62,7 @@ STOPSIGNAL SIGTERM
 ###         arg3:  Bitwise mask to specify what TCP connections to set up
 ###                deprecated 
 
-ENTRYPOINT ["/opt/ibm/scripts/dinit", "/opt/ibm/scripts/informix_entry.sh", "0x73", "/opt/ibm/scripts/informix_stop.sh"]
+ENTRYPOINT ["/opt/hcl/scripts/dinit", "/opt/hcl/scripts/informix_entry.sh", "0x73", "/opt/hcl/scripts/informix_stop.sh"]
 CMD [""]
 
 

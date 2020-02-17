@@ -4,6 +4,17 @@
 #  description: Setup the sqlhosts file in the docker image 
 #  Called by:   informix_entry.sh
 
+TRUE=1
+FALSE=0
+
+if ( ifFileExists $INFORMIX_CONFIG_DIR/sqlhosts )
+then
+      MSGLOG ">>>      DEBUG: FILEEXISTS=1" N
+   FILEEXISTS=1
+else
+      MSGLOG ">>>      DEBUG: FILEEXISTS=0" N
+   FILEEXISTS=0
+fi
 
 if ( $(isEnvSet $env_SQLHOSTS_FILE) ) 
 then
@@ -26,21 +37,16 @@ else
    fi
 fi
 
-#sudo touch ${SQLHOSTS_PATH}
-#sudo chown informix:informix $SQLHOSTS_PATH
-#sudo chmod 744 $SQLHOSTS_PATH
-#[[ $env_STORAGE != "LOCAL" ]] && ln -s $SQLHOSTS_PATH $INFORMIXSQLHOSTS
 
-
-
-
-if [ -z $env_SQLHOSTS_FILE ]
+if [[ -z $env_SQLHOSTS_FILE && $FILEEXISTS -eq $FALSE ]]
 then
-   sudo echo "############################################################" >> ${INFORMIXSQLHOSTS}
-   sudo echo "### DO NOT MODIFY THIS COMMENT SECTION " >> ${INFORMIXSQLHOSTS}
-   sudo echo "### HOST NAME = ${HOSTNAME} " >> ${INFORMIXSQLHOSTS}
-   sudo echo "############################################################" >> ${INFORMIXSQLHOSTS}
-   sudo echo "${INFORMIXSERVER}        onsoctcp        ${HOSTNAME}         9088" >> "${INFORMIXSQLHOSTS}"
-   sudo echo "${INFORMIXSERVER}_dr     drsoctcp        ${HOSTNAME}         9089" >> "${INFORMIXSQLHOSTS}"
-   #sudo echo "${INFORMIXSERVER}_dr     drsoctcp        ${HOSTNAME}         9089" >> "${SQLHOSTS_PATH}"
+   RUNAS root "cat /dev/null > $INFORMIXSQLHOSTS "
+   RUNAS root "echo '############################################################' >> ${INFORMIXSQLHOSTS}"
+   RUNAS root "echo '### DO NOT MODIFY THIS COMMENT SECTION '>> ${INFORMIXSQLHOSTS}"
+   RUNAS root "echo '### HOST NAME = ${HOSTNAME} ' >> ${INFORMIXSQLHOSTS}"
+   RUNAS root "echo '############################################################' >> ${INFORMIXSQLHOSTS}"
+   RUNAS root "echo '${INFORMIXSERVER}        onsoctcp        *${HOSTNAME}         9088' >> ${INFORMIXSQLHOSTS}"
+   RUNAS root "echo '${INFORMIXSERVER}_dr     drsoctcp        *${HOSTNAME}         9089' >> ${INFORMIXSQLHOSTS}"
+else
+      MSGLOG ">>>      Using Exiting SQLHOSTS $INFORMIX_CONFIG_DIR/sqlhosts" N
 fi

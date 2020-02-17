@@ -29,7 +29,7 @@ MSGLOG ">>> env_SHMVIRT_PERCENTAGE: $env_SHMVIRT_PERCENTAGE" N
 MSGLOG ">>> env_NONPDQ_PERCENTAGE:  $env_NONPDQ_PERCENTAGE" N
 
 SUCCESS=0
-FAILURE=-1
+FAILURE=1
 
 ## Resource Limit files.  
 CPUFILE="/sys/fs/cgroup/cpu/cpu.cfs_quota_us"
@@ -62,7 +62,7 @@ then
 else
    vMEM_MB=`echo "scale=2; $vSYSTEM_MEM_LIMIT_MB * $vMEM_USE_PERCENTAGE" |bc -l `
 fi
-
+vMEM_MB=$(printf "%.0f" $vMEM_MB)
 
 MSGLOG ">>> vMEM_MB:         $vMEM_MB" N
 MSGLOG ">>> vCPUS_HOST:      $vCPUS_HOST"
@@ -184,20 +184,14 @@ function setMEMResources()
       fi
    fi  
 
-
    vMEMUSE_BUF=`echo "scale=2; (( $vMEM_MB_USEABLE) * ($env_BUFFERS_PERCENTAGE / 100))" | bc`
    vMEMUSE_SHM=`echo "scale=2; (( $vMEM_MB_USEABLE) * ($env_SHMVIRT_PERCENTAGE / 100))" | bc`
    vMEMUSE_NONPDQ=`echo "scale=2; (( $vMEM_MB_USEABLE) * ($env_NONPDQ_PERCENTAGE / 100))" | bc`
-
-
 
    vBUFFERS=`echo "$vMEMUSE_BUF * 500 "|bc`
    vSHMVIRTSIZE=`echo "$vMEMUSE_SHM * 1000 "|bc`
    vSHMTOTAL=`echo "($vMEM_MB_USEABLE) * 1000" | bc`
    vNONPDQ=`echo "$vMEMUSE_NONPDQ * 1000" |bc`
-
-
-
 
    vNONPDQ=${vNONPDQ%.*}
    vSHMTOTAL=${vSHMTOTAL%.*}

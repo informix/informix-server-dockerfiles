@@ -10,9 +10,12 @@ UPDATE=2
 DELETE=3
 MOD=0
 MODFILE=$1
+FILENAME=$2
 
 IFS=" "
 
+MSGLOG ">>>    MODIFY ONCONFIG: $MODFILE" N
+MSGLOG ">>>    MODIFY ONCONFIG: $FILENAME" N
 
 while IFS= read -r line || [ -n "$line" ]
 do
@@ -44,21 +47,25 @@ do
 
    if [[ $MOD == $DELETE ]]
    then
-   SED "/^${toks[0]}/d" $INFORMIXDIR/etc/$ONCONFIG
+   MSGLOG ">>>>   ONCONFIG DEL: ${toks[0]}" N
+   SED "/^${toks[0]} /d" $FILENAME
    fi
 
    if [[ $MOD == $ADD ]]
    then
-   cnt=`sed -n "/^${line}/p" $INFORMIXDIR/etc/$ONCONFIG |wc -l`
+   cnt=`sed -n "/^${line}/p" $FILENAME |wc -l`
+         MSGLOG ">>>>   ONCONFIG ADD1: $line" N
       if [[ $cnt == "0" ]]
       then
-         echo $line >> $$INFORMIXDIR/etc/$ONCONFIG
+         MSGLOG ">>>>   ONCONFIG ADD2: $line" N
+         echo $line >> $FILENAME
       fi
    fi
 
    if [[ $MOD == $UPDATE ]]
    then
-      SED "s/^${toks[0]}.*/${toks[0]} ${toks[1]}/g" $INFORMIXDIR/etc/$ONCONFIG
+      MSGLOG ">>>>   ONCONFIG UPDATE: ${toks[0]} - ${toks[1]}" N
+      SED "s/^${toks[0]} .*/${toks[0]} ${toks[1]}/g" $FILENAME
    fi
 
 done < $MODFILE 

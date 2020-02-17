@@ -11,11 +11,11 @@ SLEEP=15
 ITER=40
 
 HQLOG ">>>  HQSERVER: " 
-HQLOG ">>>     HQADMIN_PASSWORD: ${env_HQADMIN_PASSWORD}" 
-HQLOG ">>>     INFORMIX_PASSWORD: ${env_INFORMIX_PASSWORD}" 
-HQLOG ">>>     HQSERVER_MAPPED_HOSNAME: ${env_HQSERVER_MAPPED_HOSTNAME}" 
-HQLOG ">>>     HQSERVER_MAPPED_HTTP_PORT: ${env_HQSERVER_MAPPED_HTTP_PORT}" 
-HQLOG ">>>     MAPPED_HOSTNAME: ${env_MAPPED_HOSTNAME}" 
+HQLOG ">>>     HQSERVER: HQADMIN_PASSWORD: ${env_HQADMIN_PASSWORD}" 
+HQLOG ">>>     HQSERVER: INFORMIX_PASSWORD: ${env_INFORMIX_PASSWORD}" 
+HQLOG ">>>     HQSERVER: HQSERVER_MAPPED_HOSTNAME: ${env_HQSERVER_MAPPED_HOSTNAME}" 
+HQLOG ">>>     HQSERVER: HQSERVER_MAPPED_HTTP_PORT: ${env_HQSERVER_MAPPED_HTTP_PORT}" 
+HQLOG ">>>     HQSERVER: MAPPED_HOSTNAME: ${env_MAPPED_HOSTNAME}" 
 
 dbaccess - <<!
 create database if not exists hqmon;
@@ -33,21 +33,39 @@ java -jar $INFORMIXDIR/hq/informixhq-server.jar >> $HQLOG &
 
 sleep $SLEEP
 
-MSGLOG ">>>     REGISTERING HQ Server " N
+waitForHQSERVER
+
+HQLOG ">>>     HQSERVER: Creating HQ Server Group " N
 
 for i in $(eval echo "{1..$ITER}") 
 do
+GROUP_ID=`curl -basic -u admin:${env_HQADMIN_PASSWORD} -H 'Content-Type: application/json' -H 'Accept: application/json' http://${env_HQSERVER_MAPPED_HOSTNAME}:${env_HQSERVER_MAPPED_HTTP_PORT}/api/informix/groups/0 --data-binary "{'name': 'HQ Server'}" 2>/dev/null | jq '.id'`
 
-SERVER_ID=`curl -basic -u admin:${env_HQADMIN_PASSWORD} -H 'Content-Type: application/json' -H 'Accept: application/json' http://${env_HQSERVER_MAPPED_HOSTNAME}:${env_HQSERVER_MAPPED_HTTP_PORT}/api/informix --data-binary "{'groupId': 0, 'alias': '${env_MAPPED_HOSTNAME}', 'hostname': '${env_MAPPED_HOSTNAME}', 'port': ${env_MAPPED_SQLI_PORT}, 'monitorUser': 'informix', 'monitorPassword': '${env_INFORMIX_PASSWORD}', 'adminUser': 'informix', 'adminPassword': '${env_INFORMIX_PASSWORD}'}" 2>/dev/null | jq '.id'`
+
+HQLOG ">>>        HQSERVER: CREATE ATTEMPT $i" N
+   if [[ ! -z ${GROUP_ID} ]] 
+   then
+   break
+   fi
+   sleep $SLEEP 
+done
+HQLOG ">>>           HQSERVER: HQSERVER GROUP Created - GROUP ID: $GROUP_ID" N 
 
 
-MSGLOG ">>>        REGISTER ATTEMPT $i" N
+HQLOG ">>>     HQSERVER: REGISTERING HQ Server " N
+
+for i in $(eval echo "{1..$ITER}") 
+do
+SERVER_ID=`curl -basic -u admin:${env_HQADMIN_PASSWORD} -H 'Content-Type: application/json' -H 'Accept: application/json' http://${env_HQSERVER_MAPPED_HOSTNAME}:${env_HQSERVER_MAPPED_HTTP_PORT}/api/informix --data-binary "{'groupId': ${GROUP_ID}, 'alias': '${env_MAPPED_HOSTNAME}', 'hostname': '${env_MAPPED_HOSTNAME}', 'port': ${env_MAPPED_SQLI_PORT}, 'monitorUser': 'informix', 'monitorPassword': '${env_INFORMIX_PASSWORD}', 'adminUser': 'informix', 'adminPassword': '${env_INFORMIX_PASSWORD}'}" 2>/dev/null | jq '.id'`
+
+
+HQLOG ">>>        HQSERVER: REGISTER ATTEMPT $i" N
    if [[ ! -z ${SERVER_ID} ]] 
    then
    break
    fi
    sleep $SLEEP 
 done
-MSGLOG ">>>           HQSERVER REGISTERED - SERVER_ID: $SERVER_ID" N 
+HQLOG ">>>           HQSERVER: HQSERVER REGISTERED - SERVER_ID: $SERVER_ID" N 
 
 

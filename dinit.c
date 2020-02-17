@@ -14,7 +14,7 @@ void sig_handler (int signo)
 {
    if (signo == SIGINT || signo == SIGTERM)
    {
-      //printf("Shutdown:\n");
+      printf("Shutdown Signal Received:\n");
       sprintf(cmd, "%s %s", garg3, garg4);
       system(cmd);
    }
@@ -31,12 +31,12 @@ garg2=argv[2];
 garg3=argv[3];
 garg4=argv[4];
 
-/*
+
 printf("argv[1]: %s\n", garg1);
 printf("argv[2]: %s\n", garg2);
 printf("argv[3]: %s\n", garg3);
 printf("argv[4]: %s\n", garg4);
-*/
+
 
 if (signal(SIGINT, sig_handler) == SIG_ERR)
    printf("Can't catch SIGINT\n");
@@ -52,9 +52,6 @@ while (1)
 {
    sleep(10);
 }
-
-
-//pause();
 
 
 return 0;
